@@ -102,6 +102,39 @@ FmxMBPlantTextVisitor >> onlySingleUserOf: aTrait [
 			traits size = 1 and: [ traits anyOne = aTrait ] ]) = 1
 ]
 
+{ #category : #formatting }
+FmxMBPlantTextVisitor >> plantUMLFooter [
+	^'@enduml
+'
+]
+
+{ #category : #visiting }
+FmxMBPlantTextVisitor >> plantUMLFor: aTrait withKey: behaviorKey [
+
+	stream
+		nextPutAll: 'class ';
+		nextPutAll: behaviorKey;
+		nextPutAll: ' as "';
+		nextPutAll: aTrait name;
+		nextPutAll: '" << (T,' , (self umlColorFor: aTrait) , ') >> {';
+		cr.
+
+	aTrait properties do: [ :each | each acceptVisitor: self ].
+
+	stream
+		nextPutAll: '}';
+		cr;
+		cr
+]
+
+{ #category : #formatting }
+FmxMBPlantTextVisitor >> plantUMLHeader [
+	^ '@startuml
+hide empty members
+
+'
+]
+
 { #category : #private }
 FmxMBPlantTextVisitor >> recordGeneralizationsForClass: aClass mergingTraits: mergesTrait [. 
 
@@ -134,38 +167,39 @@ FmxMBPlantTextVisitor >> selectTraitsWithUsersFrom: aBuilder [
 	^ traitsWithUsers := aBuilder classes flatCollect: [:each | each traitGeneralizations] as: Set
 ]
 
+{ #category : #formatting }
+FmxMBPlantTextVisitor >> umlColorFor: anObject [
+	^'orchid'
+]
+
 { #category : #visiting }
 FmxMBPlantTextVisitor >> visitBuilder: aBuilder [
-	stream
-		nextPutAll: '@startuml';
-		cr;
-		cr;
-		nextPutAll: 'hide empty members';
-		cr;
-		cr.
 
-	self gatherTraits
-		ifTrue: [ stream
-				nextPutAll: 'together {';
-				cr ].
+	stream nextPutAll: self plantUMLHeader.
+
+	self gatherTraits ifTrue: [ 
+		stream
+			nextPutAll: 'together {';
+			cr ].
 
 	self selectTraitsWithUsersFrom: aBuilder.
 
-	(aBuilder traits select: #willGenerate) do: [ :each | each acceptVisitor: self ].
+	(aBuilder traits select: #willGenerate) do: [ :each | 
+		each acceptVisitor: self ].
 
-	self gatherTraits
-		ifTrue: [ stream
-				nextPutAll: '}';
-				cr ].
+	self gatherTraits ifTrue: [ 
+		stream
+			nextPutAll: '}';
+			cr ].
 
 	aBuilder sortedClasses do: [ :each | each acceptVisitor: self ].
 
 	self writeGeneralizations.
 	self writeRelations.
-	stream
-		cr;
-		nextPutAll: '@enduml';
-		cr
+
+		stream
+			cr ;
+			nextPutAll: self plantUMLFooter
 ]
 
 { #category : #visiting }
@@ -196,35 +230,25 @@ FmxMBPlantTextVisitor >> visitRelationSide: aRelationSide [
 FmxMBPlantTextVisitor >> visitTrait: aTrait [
 
 	| behaviorKey |
-	
 	aTrait willGenerate ifFalse: [ ^ self ].
-	
-	(traitsWithUsers includes: aTrait) ifFalse: [ ^self ].
-	
-	((aTrait builder classes flatCollect: [:each | each traitGeneralizations]) includes: aTrait)
-		ifFalse: [ ^ self ].
+
+	(traitsWithUsers includes: aTrait) ifFalse: [ ^ self ].
+
+	((aTrait builder classes flatCollect: [ :each | 
+		  each traitGeneralizations ]) includes: aTrait) ifFalse: [ ^ self ].
 
 	behaviorKey := self ensureBehaviorNameFor: aTrait.
-	
+
 	(self onlySingleUserOf: aTrait) ifTrue: [ 
 		| savedStream |
 		savedStream := stream.
 		stream := String new writeStream.
 		aTrait properties do: [ :each | each acceptVisitor: self ].
-		typedProperties add: (aTrait -> stream contents).
+		typedProperties add: aTrait -> stream contents.
 		stream := savedStream.
-		^ self ].	
-
-	stream nextPutAll: 'class ';
-		nextPutAll: behaviorKey; 
-		nextPutAll: ' as "';
-		nextPutAll: aTrait name; 
-		nextPutAll: '" << (T,orchid) >> {'; 
-		cr.
-
-	aTrait properties do: [ :each | each acceptVisitor: self ].
-
-	stream nextPutAll: '}'; cr; cr.
+		^ self ].
+	
+	self plantUMLFor: aTrait withKey: behaviorKey.
 
 ]
 
